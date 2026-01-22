@@ -391,7 +391,7 @@ Check service health.
 2. **Vector DB Creation**: ~10-30 seconds depending on article size
 3. **ASR Transcription**: ~1-3 seconds for 10-second audio (base model)
 4. **Translation**: ~0.5-1 second per request
-5. **LLM Generation**: ~2-5 seconds (Groq is fastest)
+5. **LLM Generation**: ~2-5 seconds 
 
 **Total Pipeline Latency**: ~6-15 seconds for end-to-end query
 
@@ -449,9 +449,7 @@ RecallVision/
 
 This project was created as part of an AI/ML assignment. Feel free to fork and improve!
 
-## 📄 License
 
-This project is for educational purposes.
 
 ## 🙏 Acknowledgments
 
@@ -468,4 +466,3 @@ For questions or issues, please open a GitHub issue.
 
 ---
 
-**Built with ❤️ for AI4Bharat Assignment**
