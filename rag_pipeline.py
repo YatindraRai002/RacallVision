@@ -9,6 +9,10 @@ import faiss
 from typing import Optional, Dict, Any
 from sentence_transformers import SentenceTransformer
 from translation import translate_text
+from dotenv import load_dotenv
+
+# Load environment variables
+load_dotenv()
 
 
 class RAGPipeline:

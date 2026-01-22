@@ -6,6 +6,10 @@ import tempfile
 from rag_pipeline import RAGPipeline
 from audio_recorder_streamlit import audio_recorder
 import time
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
 
 
 # Page configuration
@@ -172,8 +176,8 @@ def main():
         
         db_path = st.text_input(
             "Vector DB Path",
-            value="data/chroma_db",
-            help="Path to ChromaDB database"
+            value="data/faiss_db",
+            help="Path to FAISS database"
         )
         
         llm_provider = st.selectbox(
@@ -184,18 +188,17 @@ def main():
         
         st.markdown("---")
         
-        # API Keys info
-        st.markdown("""
-        <div class="info-box">
-            <strong>📝 Required API Keys:</strong><br>
-            • Set <code>LLM_API_KEY</code> environment variable<br>
-            • Set <code>SARVAM_API_KEY</code> environment variable
-        </div>
-        """, unsafe_allow_html=True)
+        # Mode selection
+        demo_mode = st.checkbox("📝 Text Demo Mode (No ASR needed)", value=True)
+        
+        st.markdown("---")
         
         # Initialize button
         if st.button("🚀 Initialize Pipeline"):
-            initialize_pipeline(asr_endpoint, db_path, llm_provider)
+            if demo_mode:
+                initialize_pipeline("", db_path, llm_provider)
+            else:
+                initialize_pipeline(asr_endpoint, db_path, llm_provider)
         
         st.markdown("---")
         
@@ -212,12 +215,14 @@ def main():
         st.markdown("""
         ### 🚀 Quick Start Guide
         
-        1. **Start ASR Service**: Run `python asr_service.py` in a separate terminal
-        2. **Set API Keys**: 
-           - `set LLM_API_KEY=your_key_here` (Windows) or `export LLM_API_KEY=your_key_here` (Linux/Mac)
-           - `set SARVAM_API_KEY=your_key_here`
-        3. **Initialize Pipeline**: Click the "Initialize Pipeline" button in the sidebar
-        4. **Start Chatting**: Upload or record audio to ask questions!
+        1. **Enable Text Demo Mode** in sidebar (recommended)
+        2. **Initialize Pipeline**: Click the button in the sidebar
+        3. **Ask Questions**: Type your question in the chat below!
+        
+        **Sample Questions:**
+        - What is artificial intelligence?
+        - Tell me about machine learning
+        - Explain deep learning
         """)
     
     else:
@@ -230,83 +235,119 @@ def main():
                 details=message.get("details")
             )
         
-        # Audio input options
-        st.markdown("### 🎤 Ask Your Question")
+        # Text input option (always available)
+        st.markdown("### 💬 Ask Your Question")
         
-        col1, col2 = st.columns(2)
+        text_query = st.text_input("Type your question here:", placeholder="e.g., What is machine learning?")
         
-        with col1:
-            st.markdown("**Option 1: Record Audio**")
-            audio_bytes = audio_recorder(
-                text="Click to record",
-                recording_color="#667eea",
-                neutral_color="#6aa36f",
-                icon_name="microphone",
-                icon_size="2x"
-            )
-            
-            if audio_bytes:
-                st.audio(audio_bytes, format="audio/wav")
-                
-                if st.button("🚀 Process Recording"):
-                    results = process_audio_input(audio_bytes, st.session_state.pipeline)
+        if st.button("🚀 Submit Question") and text_query:
+            try:
+                with st.spinner("🔄 Processing..."):
+                    # Retrieve context
+                    context_chunks = st.session_state.pipeline.retrieve_context(text_query, top_k=2)
                     
-                    if results:
-                        # Add to chat history
-                        st.session_state.messages.append({
-                            "role": "user",
-                            "content": results["transcription"],
-                            "show_details": False
-                        })
-                        
-                        st.session_state.messages.append({
-                            "role": "assistant",
-                            "content": results["answer"],
-                            "show_details": True,
-                            "details": {
-                                "transcription": results["transcription"],
-                                "translation": results["translation"],
-                                "context_chunks": results["context"]
-                            }
-                        })
-                        
-                        st.rerun()
-        
-        with col2:
-            st.markdown("**Option 2: Upload Audio File**")
-            uploaded_file = st.file_uploader(
-                "Choose an audio file",
-                type=["wav", "mp3", "m4a", "ogg"],
-                help="Upload an audio file with your question"
-            )
-            
-            if uploaded_file:
-                st.audio(uploaded_file)
-                
-                if st.button("🚀 Process Upload"):
-                    audio_bytes = uploaded_file.read()
-                    results = process_audio_input(audio_bytes, st.session_state.pipeline)
+                    # Generate answer
+                    answer = st.session_state.pipeline.generate_answer(text_query, context_chunks)
                     
-                    if results:
-                        # Add to chat history
-                        st.session_state.messages.append({
-                            "role": "user",
-                            "content": results["transcription"],
-                            "show_details": False
-                        })
+                    # Add to chat history
+                    st.session_state.messages.append({
+                        "role": "user",
+                        "content": text_query,
+                        "show_details": False
+                    })
+                    
+                    st.session_state.messages.append({
+                        "role": "assistant",
+                        "content": answer,
+                        "show_details": True,
+                        "details": {
+                            "query": text_query,
+                            "context_chunks": context_chunks
+                        }
+                    })
+                    
+                    st.rerun()
+            except Exception as e:
+                st.error(f"❌ Error: {e}")
+        
+        st.markdown("---")
+        
+        # Audio input options (optional)
+        with st.expander("🎤 Advanced: Audio Input (Requires ASR Service)"):
+            st.warning("⚠️ Audio features require ASR service running on port 8000")
+            
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                st.markdown("**Option 1: Record Audio**")
+                audio_bytes = audio_recorder(
+                    text="Click to record",
+                    recording_color="#667eea",
+                    neutral_color="#6aa36f",
+                    icon_name="microphone",
+                    icon_size="2x"
+                )
+                
+                if audio_bytes:
+                    st.audio(audio_bytes, format="audio/wav")
+                    
+                    if st.button("🚀 Process Recording"):
+                        results = process_audio_input(audio_bytes, st.session_state.pipeline)
                         
-                        st.session_state.messages.append({
-                            "role": "assistant",
-                            "content": results["answer"],
-                            "show_details": True,
-                            "details": {
-                                "transcription": results["transcription"],
-                                "translation": results["translation"],
-                                "context_chunks": results["context"]
-                            }
-                        })
+                        if results:
+                            st.session_state.messages.append({
+                                "role": "user",
+                                "content": results["transcription"],
+                                "show_details": False
+                            })
+                            
+                            st.session_state.messages.append({
+                                "role": "assistant",
+                                "content": results["answer"],
+                                "show_details": True,
+                                "details": {
+                                    "transcription": results["transcription"],
+                                    "translation": results["translation"],
+                                    "context_chunks": results["context"]
+                                }
+                            })
+                            
+                            st.rerun()
+            
+            with col2:
+                st.markdown("**Option 2: Upload Audio File**")
+                uploaded_file = st.file_uploader(
+                    "Choose an audio file",
+                    type=["wav", "mp3", "m4a", "ogg"],
+                    help="Upload an audio file with your question"
+                )
+                
+                if uploaded_file:
+                    st.audio(uploaded_file)
+                    
+                    if st.button("🚀 Process Upload"):
+                        audio_bytes = uploaded_file.read()
+                        results = process_audio_input(audio_bytes, st.session_state.pipeline)
                         
-                        st.rerun()
+                        if results:
+                            st.session_state.messages.append({
+                                "role": "user",
+                                "content": results["transcription"],
+                                "show_details": False
+                            })
+                            
+                            st.session_state.messages.append({
+                                "role": "assistant",
+                                "content": results["answer"],
+                                "show_details": True,
+                                "details": {
+                                    "transcription": results["transcription"],
+                                    "translation": results["translation"],
+                                    "context_chunks": results["context"]
+                                }
+                            })
+                            
+                            st.rerun()
 
 
 if __name__ == "__main__":
