@@ -115,8 +115,8 @@ if 'chat_history' not in st.session_state:
 if 'pipeline' not in st.session_state:
     with st.spinner("🔄 Initializing RAG pipeline..."):
         try:
-            # explicitly set ASR endpoint to port 8001
-            st.session_state.pipeline = RAGPipeline(asr_endpoint="http://localhost:8001/transcribe")
+            # explicitly set ASR endpoint to port 8001 (using 127.0.0.1 to avoid IPv6 issues)
+            st.session_state.pipeline = RAGPipeline(asr_endpoint="http://127.0.0.1:8001/transcribe")
             st.success("✅ Pipeline initialized successfully!")
         except Exception as e:
             st.error(f"❌ Failed to initialize pipeline: {str(e)}")
@@ -244,52 +244,57 @@ elif input_mode == "📝 Text Input":
                 st.error(f"❌ Error: {str(e)}")
 
 elif input_mode == "🔴 Record Audio":
-    st.info("🎤 Audio recording feature")
+    st.info("🎤 Voice Recorder")
+    st.markdown("Click the microphone to start speaking. Click it again to stop.")
     
     # check if audio-recorder-streamlit is available
     try:
         from audio_recorder_streamlit import audio_recorder
         
         audio_bytes = audio_recorder(
-            text="Click to record",
+            text="",  # Minimal text to keep interface clean, instructions are above
             recording_color="#e74c3c",
             neutral_color="#667eea",
             icon_name="microphone",
             icon_size="3x"
         )
         
-        if audio_bytes and st.button("🚀 Process Recording", use_container_width=True):
-            with st.spinner("🎧 Processing your recording..."):
-                # save recording temporarily
-                with tempfile.NamedTemporaryFile(delete=False, suffix='.wav') as tmp_file:
-                    tmp_file.write(audio_bytes)
-                    tmp_path = tmp_file.name
-                
-                try:
-                    # process through RAG pipeline
-                    results = st.session_state.pipeline.process_audio_query(tmp_path)
+        if audio_bytes:
+            st.success("✅ Recording complete! Preview your audio below:")
+            st.audio(audio_bytes, format="audio/wav")
+            
+            if st.button("🚀 Process Recording", use_container_width=True):
+                with st.spinner("🎧 Processing your recording..."):
+                    # save recording temporarily
+                    with tempfile.NamedTemporaryFile(delete=False, suffix='.wav') as tmp_file:
+                        tmp_file.write(audio_bytes)
+                        tmp_path = tmp_file.name
                     
-                    # add to chat history
-                    st.session_state.chat_history.append({
-                        'type': 'user',
-                        'content': results['transcription'],
-                        'language': results.get('detected_language', 'unknown')
-                    })
-                    
-                    st.session_state.chat_history.append({
-                        'type': 'assistant',
-                        'content': results['answer'],
-                        'context': results['context_chunks']
-                    })
-                    
-                    st.rerun()
-                    
-                except Exception as e:
-                    st.error(f"❌ Error processing recording: {str(e)}")
-                finally:
-                    # cleanup temp file
-                    if os.path.exists(tmp_path):
-                        os.remove(tmp_path)
+                    try:
+                        # process through RAG pipeline
+                        results = st.session_state.pipeline.process_audio_query(tmp_path)
+                        
+                        # add to chat history
+                        st.session_state.chat_history.append({
+                            'type': 'user',
+                            'content': results['transcription'],
+                            'language': results.get('detected_language', 'unknown')
+                        })
+                        
+                        st.session_state.chat_history.append({
+                            'type': 'assistant',
+                            'content': results['answer'],
+                            'context': results['context_chunks']
+                        })
+                        
+                        st.rerun()
+                        
+                    except Exception as e:
+                        st.error(f"❌ Error processing recording: {str(e)}")
+                    finally:
+                        # cleanup temp file
+                        if os.path.exists(tmp_path):
+                            os.remove(tmp_path)
     
     except ImportError:
         st.warning("⚠️ Audio recording requires `audio-recorder-streamlit` package")
