@@ -92,9 +92,7 @@ The system follows a modular pipeline architecture:
 3. **Retrieval**: Searches vector DB for relevant context
 4. **Generation**: LLM generates answer using retrieved context
 
-## License
 
-MIT
 
 ## Contributing
 
