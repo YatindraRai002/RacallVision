@@ -14,6 +14,12 @@ class ASRModel:
     """Whisper ASR model wrapper"""
     
     def __init__(self, model_name=None):
+        # Explicitly add FFmpeg to PATH
+        ffmpeg_path = r"C:\ffmpeg_tool"
+        if ffmpeg_path not in os.environ["PATH"]:
+            os.environ["PATH"] += os.pathsep + ffmpeg_path
+            logger.info(f"Added {ffmpeg_path} to PATH")
+            
         self.model_name = model_name or config.ASR_MODEL_NAME
         self.model = None
         logger.info(f"ASR model initialized: {self.model_name}")

@@ -1,6 +1,6 @@
 """
 RecallVision - Vector Database Builder Script
-Builds FAISS vector database from text files
+Builds FAISS vector database from text files (single or batch)
 """
 
 import argparse
@@ -23,9 +23,14 @@ def main():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
+  # Process single file
   python scripts/build_vector_db.py --input data/raw/artificial_intelligence.txt
-  python scripts/build_vector_db.py --input data/raw/ai.txt --chunk_size 1000 --chunk_overlap 100
-  python scripts/build_vector_db.py --input data/raw/ai.txt --output custom_db
+  
+  # Process all .txt files in directory
+  python scripts/build_vector_db.py --input data/raw
+  
+  # Custom settings
+  python scripts/build_vector_db.py --input data/raw --chunk_size 1000 --output custom_db
         """
     )
     
@@ -33,7 +38,7 @@ Examples:
         '--input',
         type=str,
         required=True,
-        help='Path to input text file'
+        help='Path to input text file or directory containing .txt files'
     )
     
     parser.add_argument(
@@ -69,7 +74,7 @@ Examples:
     print("=" * 70)
     print("🔨 VECTOR DATABASE BUILDER")
     print("=" * 70)
-    print(f"Input file: {args.input}")
+    print(f"Input: {args.input}")
     print(f"Output directory: {args.output}")
     print(f"Chunk size: {args.chunk_size}")
     print(f"Chunk overlap: {args.chunk_overlap}")
@@ -77,33 +82,65 @@ Examples:
     print("=" * 70)
     print()
     
-    logger.info(f"Reading input file: {args.input}")
-    text = read_text_file(args.input)
+    input_path = Path(args.input)
+    files_to_process = []
     
-    if not text:
-        print("❌ Failed to read input file")
+    if input_path.is_file():
+        files_to_process.append(input_path)
+    elif input_path.is_dir():
+        files_to_process.extend(list(input_path.glob("*.txt")))
+    else:
+        print(f"❌ Input path not found: {args.input}")
         return 1
+        
+    if not files_to_process:
+        print(f"❌ No files to process. If excluding directory, make sure it contains .txt files.")
+        return 1
+        
+    print(f"Found {len(files_to_process)} files to process.")
     
-    print(f"✅ Read {len(text):,} characters from input file")
+    # Read and chunk files
+    all_chunks = []
+    all_chunk_metadata = []
     
-    logger.info("Chunking text...")
     chunker = TextChunker(chunk_size=args.chunk_size, chunk_overlap=args.chunk_overlap)
-    chunks_with_meta = chunker.chunk_with_metadata(text, source=args.input)
-    chunks = [c['text'] for c in chunks_with_meta]
     
-    print(f"✅ Created {len(chunks)} chunks")
+    for file_path in files_to_process:
+        logger.info(f"Processing: {file_path.name}")
+        print(f"\n📖 Processing: {file_path.name}")
+        
+        text = read_text_file(str(file_path))
+        if not text:
+            print(f"  ❌ Failed to read or empty")
+            continue
+            
+        chunks_with_meta = chunker.chunk_with_metadata(text, source=str(file_path))
+        
+        if chunks_with_meta:
+            file_chunks = [c['text'] for c in chunks_with_meta]
+            all_chunks.extend(file_chunks)
+            all_chunk_metadata.extend(chunks_with_meta)
+            print(f"  ✅ Generated {len(file_chunks)} chunks")
+        else:
+            print(f"  ⚠️ No chunks generated")
+
+    if not all_chunks:
+        print("\n❌ No chunks generated from any files.")
+        return 1
+        
+    print(f"\n✅ Total chunks to embed: {len(all_chunks)}")
     
     logger.info("Generating embeddings...")
-    print("⏳ Generating embeddings (this may take a moment)...")
+    print("\n⏳ Generating embeddings (this may take a moment)...")
     
     embedding_model = EmbeddingModel(args.embedding_model)
-    embeddings = embedding_model.encode(chunks, show_progress=True)
+    embeddings = embedding_model.encode(all_chunks, show_progress=True)
     
     print(f"✅ Generated embeddings with shape: {embeddings.shape}")
     
     logger.info("Creating vector database...")
     vector_db = VectorDatabase(args.output)
-    vector_db.create(embeddings, chunks, chunks_with_meta)
+    vector_db.create(embeddings, all_chunks, all_chunk_metadata)
     
     print(f"✅ Created vector database with {vector_db.size} vectors")
     
@@ -114,14 +151,8 @@ Examples:
     
     print()
     print("=" * 70)
-    print("✅ VECTOR DATABASE BUILD COMPLETED SUCCESSFULLY!")
+    print("✅ BUILD COMPLETE!")
     print("=" * 70)
-    
-    print("\nDatabase Summary:")
-    print(f"  Total chunks: {len(chunks)}")
-    print(f"  Embedding dimension: {embeddings.shape[1]}")
-    print(f"  Average chunk size: {sum(len(c) for c in chunks) // len(chunks)} characters")
-    print(f"  Database location: {args.output}")
     
     return 0
 
