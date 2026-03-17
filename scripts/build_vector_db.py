@@ -1,7 +1,4 @@
-"""
-RecallVision - Vector Database Builder Script
-Builds FAISS vector database from text files (single or batch)
-"""
+
 
 import argparse
 import sys
@@ -90,11 +87,11 @@ Examples:
     elif input_path.is_dir():
         files_to_process.extend(list(input_path.glob("*.txt")))
     else:
-        print(f"❌ Input path not found: {args.input}")
+        print(f" Input path not found: {args.input}")
         return 1
         
     if not files_to_process:
-        print(f"❌ No files to process. If excluding directory, make sure it contains .txt files.")
+        print(f" No files to process. If excluding directory, make sure it contains .txt files.")
         return 1
         
     print(f"Found {len(files_to_process)} files to process.")
@@ -107,11 +104,11 @@ Examples:
     
     for file_path in files_to_process:
         logger.info(f"Processing: {file_path.name}")
-        print(f"\n📖 Processing: {file_path.name}")
+        print(f"\n Processing: {file_path.name}")
         
         text = read_text_file(str(file_path))
         if not text:
-            print(f"  ❌ Failed to read or empty")
+            print(f"   Failed to read or empty")
             continue
             
         chunks_with_meta = chunker.chunk_with_metadata(text, source=str(file_path))
@@ -120,38 +117,38 @@ Examples:
             file_chunks = [c['text'] for c in chunks_with_meta]
             all_chunks.extend(file_chunks)
             all_chunk_metadata.extend(chunks_with_meta)
-            print(f"  ✅ Generated {len(file_chunks)} chunks")
+            print(f"   Generated {len(file_chunks)} chunks")
         else:
-            print(f"  ⚠️ No chunks generated")
+            print(f"   No chunks generated")
 
     if not all_chunks:
-        print("\n❌ No chunks generated from any files.")
+        print("\n No chunks generated from any files.")
         return 1
         
-    print(f"\n✅ Total chunks to embed: {len(all_chunks)}")
+    print(f"\n Total chunks to embed: {len(all_chunks)}")
     
     logger.info("Generating embeddings...")
-    print("\n⏳ Generating embeddings (this may take a moment)...")
+    print("\n Generating embeddings (this may take a moment)...")
     
     embedding_model = EmbeddingModel(args.embedding_model)
     embeddings = embedding_model.encode(all_chunks, show_progress=True)
     
-    print(f"✅ Generated embeddings with shape: {embeddings.shape}")
+    print(f" Generated embeddings with shape: {embeddings.shape}")
     
     logger.info("Creating vector database...")
     vector_db = VectorDatabase(args.output)
     vector_db.create(embeddings, all_chunks, all_chunk_metadata)
     
-    print(f"✅ Created vector database with {vector_db.size} vectors")
+    print(f" Created vector database with {vector_db.size} vectors")
     
     logger.info("Saving vector database...")
     vector_db.save()
     
-    print(f"✅ Saved vector database to: {args.output}")
+    print(f" Saved vector database to: {args.output}")
     
     print()
     print("=" * 70)
-    print("✅ BUILD COMPLETE!")
+    print(" BUILD COMPLETE!")
     print("=" * 70)
     
     return 0
